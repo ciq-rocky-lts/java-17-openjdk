@@ -59,6 +59,10 @@
 # The -g flag says to use strip -g instead of full strip on DSOs or EXEs.
 # This fixes detailed NMT and other tools which need minimal debug info.
 # See: https://bugzilla.redhat.com/show_bug.cgi?id=1520879
+# To silence rpminspect's .symtab warnings due to this option, our
+# rpminspect.yaml needs:
+# debuginfo:
+#     debuginfo_sections: .debug_info .gdb_index
 %global _find_debuginfo_opts -g
 
 # With LTO flags enabled, debuginfo checks fail for some reason. Disable
@@ -103,7 +107,7 @@
 # you can list those files, with appropriate sections: cat *.spec | grep -e --install -e --slave -e post_ -e alternatives
 # TODO - fix those hardcoded lists via single list
 # Those files must *NOT* be ghosted for *slowdebug* packages
-# FIXME - if you are moving jshell or jlink or similar, always modify all three sections
+# NOTE - if you are moving jshell or jlink or similar, always modify all three sections
 # you can check via headless and devels:
 #    rpm -ql --noghost java-11-openjdk-headless-11.0.1.13-8.fc29.x86_64.rpm  | grep bin
 # == rpm -ql           java-11-openjdk-headless-slowdebug-11.0.1.13-8.fc29.x86_64.rpm  | grep bin
@@ -236,7 +240,7 @@
 %global vm_variant server
 
 # debugedit tool for rewriting ELF file paths
-%global debugedit %{_rpmconfigdir}/debugedit
+%global debugedit %( if [ -f "%{_rpmconfigdir}/debugedit"   ]; then echo "%{_rpmconfigdir}/debugedit" ; else echo "/usr/bin/debugedit"; fi  )
 
 # Filter out flags from the optflags macro that cause problems with the OpenJDK build
 # We filter out -O flags so that the optimization of HotSpot is not lowered from O3 to O2
@@ -322,12 +326,12 @@
 # New Version-String scheme-style defines
 %global featurever 17
 %global interimver 0
-%global updatever 10
+%global updatever 13
 %global patchver 0
 # buildjdkver is usually same as %%{featurever},
 # but in time of bootstrap of next jdk, it is featurever-1,
 # and this it is better to change it here, on single place
-%global buildjdkver 17
+%global buildjdkver %{featurever}
 # We don't add any LTS designator for STS packages (Fedora and EPEL).
 # We need to explicitly exclude EPEL as it would have the %%{rhel} macro defined.
 %if 0%{?rhel} && !0%{?epel}
@@ -362,7 +366,7 @@
 # Define IcedTea version used for SystemTap tapsets and desktop file
 %global icedteaver      6.0.0pre00-c848b93a8598
 # Define current Git revision for the FIPS support patches
-%global fipsver d63771ea660
+%global fipsver e893be00150
 %global javaver         %{featurever}
 %global newjavaver %{featurever}.%{interimver}.%{updatever}.%{patchver}
 
@@ -377,12 +381,19 @@
 %global origin_nice     OpenJDK
 %global top_level_dir_name   %{vcstag}
 %global top_level_dir_name_backup %{top_level_dir_name}-backup
-%global buildver        7
+%global buildver 11
 # rpmrelease numbering must start at 2 to be later than the 9.0 RPM
-%global rpmrelease      2
+%global rpmrelease 3
 # Settings used by the portable build
 %global portablerelease 1
-%global portablesuffix el9_2.ciqlts
+# Portable suffix differs between RHEL and CentOS
+%if 0%{?centos} == 0
+%global portablesuffix el9_2.92ciq_lts
+%global portabledir 92ciq_lts
+%else
+%global portablesuffix el9_2.92ciq_lts
+%global portabledir 92ciq_lts
+%endif
 %global portablebuilddir /builddir/build/BUILD
 
 # Priority must be 8 digits in total; up to openjdk 1.8, we were using 18..... so when we moved to 11, we had to add another digit
@@ -402,7 +413,7 @@
 # Release will be (where N is usually a number starting at 1):
 # - 0.N%%{?extraver}%%{?dist} for EA releases,
 # - N%%{?extraver}{?dist} for GA releases
-%global is_ga           1
+%global is_ga 1
 %if %{is_ga}
 %global build_type GA
 %global ea_designator ""
@@ -1124,8 +1135,8 @@ Requires: ca-certificates
 # Require javapackages-filesystem for ownership of /usr/lib/jvm/ and macros
 Requires: javapackages-filesystem
 # Require zone-info data provided by tzdata-java sub-package
-# 2023c required as of JDK-8305113
-Requires: tzdata-java >= 2023c
+# 2024a required as of JDK-8325150
+Requires: tzdata-java >= 2024a
 # for support of kernel stream control
 # libsctp.so.1 is being `dlopen`ed on demand
 Requires: lksctp-tools%{?_isa}
@@ -1324,14 +1335,14 @@ Source19: README.md
 Source20: java-%{featurever}-openjdk-portable.specfile
 
 # Setup variables to reference correct sources
-%global releasezip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.unstripped.jdk.ciqlts.%{_arch}.tar.xz
-%global staticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.static-libs.ciqlts.%{_arch}.tar.xz
-%global docszip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.docs.ciqlts.%{_arch}.tar.xz
-%global misczip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.misc.ciqlts.%{_arch}.tar.xz
-%global slowdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.jdk.ciqlts.%{_arch}.tar.xz
-%global slowdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.static-libs.ciqlts.%{_arch}.tar.xz
-%global fastdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.jdk.ciqlts.%{_arch}.tar.xz
-%global fastdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.static-libs.ciqlts.%{_arch}.tar.xz
+%global releasezip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.unstripped.jdk.%{portabledir}.%{_arch}.tar.xz
+%global staticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.static-libs.%{portabledir}.%{_arch}.tar.xz
+%global docszip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.docs.%{portabledir}.%{_arch}.tar.xz
+%global misczip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.misc.%{portabledir}.%{_arch}.tar.xz
+%global slowdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.jdk.%{portabledir}.%{_arch}.tar.xz
+%global slowdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.static-libs.%{portabledir}.%{_arch}.tar.xz
+%global fastdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.jdk.%{portabledir}.%{_arch}.tar.xz
+%global fastdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.static-libs.%{portabledir}.%{_arch}.tar.xz
 
 ############################################
 #
@@ -1347,9 +1358,6 @@ Patch600: rh1750419-redhat_alt_java.patch
 
 # Ignore AWTError when assistive technologies are loaded
 Patch1: rh1648242-accessible_toolkit_crash_do_not_break_jvm.patch
-Patch3: rh649512-remove_uses_of_far_in_jpeg_libjpeg_turbo_1_4_compat_for_jdk10_and_up.patch
-# Depend on pcsc-lite-libs instead of pcsc-lite-devel as this is only in optional repo
-Patch6: rh1684077-openjdk_should_depend_on_pcsc-lite-libs_instead_of_pcsc-lite-devel.patch
 
 # Crypto policy and FIPS support patches
 # Patch is generated from the fips-17u tree at https://github.com/rh-openjdk/jdk/tree/fips-17u
@@ -1394,7 +1402,7 @@ Patch6: rh1684077-openjdk_should_depend_on_pcsc-lite-libs_instead_of_pcsc-lite-d
 # test/jdk/sun/security/pkcs11/fips/VerifyMissingAttributes.java: fixed jtreg main class (#27)
 # RH1940064: Enable XML Signature provider in FIPS mode (#24)
 # RH2173781: Avoid calling C_GetInfo() too early, before cryptoki is initialized (#26)
-Patch1001: fips-17u-%{fipsver}.patch
+Patch1001: fips-%{featurever}u-%{fipsver}.patch
 
 #############################################
 #
@@ -1402,9 +1410,12 @@ Patch1001: fips-17u-%{fipsver}.patch
 #
 #############################################
 
+# Depend on pcsc-lite-libs instead of pcsc-lite-devel as this is only in optional repo
+Patch6: rh1684077-openjdk_should_depend_on_pcsc-lite-libs_instead_of_pcsc-lite-devel.patch
+
 #############################################
 #
-# OpenJDK patches appearing in 17.0.10
+# OpenJDK patches which missed last update
 #
 #############################################
 
@@ -1455,8 +1466,8 @@ BuildRequires: java-%{featurever}-openjdk-portable-misc = %{epoch}:%{version}-%{
 %ifarch %{zero_arches}
 BuildRequires: libffi-devel
 %endif
-# 2023c required as of JDK-8305113
-BuildRequires: tzdata-java >= 2023c
+# 2024a required as of JDK-8325150
+BuildRequires: tzdata-java >= 2024a
 # Earlier versions have a bug in tree vectorization on PPC
 BuildRequires: gcc >= 4.8.3-8
 
@@ -1472,6 +1483,7 @@ BuildRequires: harfbuzz-devel
 BuildRequires: lcms2-devel
 BuildRequires: libjpeg-devel
 BuildRequires: libpng-devel
+BuildRequires: zlib-devel
 %else
 # Version in src/java.desktop/share/native/libfreetype/include/freetype/freetype.h
 Provides: bundled(freetype) = 2.13.0
@@ -1479,12 +1491,14 @@ Provides: bundled(freetype) = 2.13.0
 Provides: bundled(giflib) = 5.2.1
 # Version in src/java.desktop/share/native/libharfbuzz/hb-version.h
 Provides: bundled(harfbuzz) = 7.2.0
-# Version in src/java.desktop/share/native/liblcms/lcms2.h
-Provides: bundled(lcms2) = 2.15.0
+# Version in src/java.desktop/share/legal/lcms.md
+Provides: bundled(lcms2) = 2.16.0
 # Version in src/java.desktop/share/native/libjavajpeg/jpeglib.h
 Provides: bundled(libjpeg) = 6b
 # Version in src/java.desktop/share/native/libsplashscreen/libpng/png.h
 Provides: bundled(libpng) = 1.6.39
+# Version in src/java.base/share/native/libzip/zlib/zlib.h
+Provides: bundled(zlib) = 1.3.1
 %endif
 
 # this is always built, also during debug-only build
@@ -1843,11 +1857,21 @@ sh %{SOURCE12} %{top_level_dir_name}
 %endif
 
 # Patch the JDK
-# -P N: apply patch number N, same as passing N as a positional argument on rpm >= 4.18
-# -p N: strip N leading slashes from paths
 pushd %{top_level_dir_name}
+# This syntax is deprecated:
+#    %patchN [...]
+# and should be replaced with:
+#    %patch -PN [...]
+# For example:
+#    %patch1001 -p1
+# becomes:
+#    %patch -P1001 -p1
+# The replacement format suggested by recent (circa Fedora 38) RPM
+# deprecation messages:
+#    %patch N [...]
+# is not backward-compatible with prior (circa RHEL-8) versions of
+# rpmbuild.
 %patch -P1 -p1
-%patch -P3 -p1
 %patch -P6 -p1
 # Add crypto policy and FIPS support
 %patch -P1001 -p1
@@ -1871,7 +1895,7 @@ else
     exit 16
 fi
 if [ "x${UPSTREAM_EA_DESIGNATOR}" != "x%{ea_designator}" ] ; then
-    echo "WARNING: Designator mismatch";
+    echo "ERROR: Designator mismatch";
     echo "Spec file is configured for a %{build_type} build with designator '%{ea_designator}'"
     echo "Upstream version-pre setting is '${UPSTREAM_EA_DESIGNATOR}'";
     exit 17
@@ -2474,11 +2498,173 @@ cjc.mainProgram(args)
 %endif
 
 %changelog
-* Fri Jan 19 2024 Matthew Hink <mhink@ciq.com> - 17.0.10.0.7-2
-- Set portablerelease/portableversion variables to match LTS
+* Fri Oct 18 2024 Jonathan Dieter <jdieter@ciq.com> - 17.0.13.0.11-3.el9_2
+- Fix build for 9.2 LTS
 
-* Wed Jan 17 2024 Release Engineering <releng@rockylinux.org> - 17.0.10.0.7-2
+* Wed Oct 16 2024 Release Engineering <releng@rockylinux.org> - 17.0.13.0.11-3
 - Build for Rocky Linux %{rocky} using our own portable
+- Ensure debugedit is found regardless of major
+
+* Wed Oct  9 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.11-3
+- Correct version suffix in "Update to jdk-17.0.13+11 (GA)" changelog entry
+- Related: RHEL-58785
+
+* Tue Oct  8 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.11-2
+- Update to jdk-17.0.13+11 (GA)
+- Update .gitignore to ignore openjdk-17.0.13+11.tar.xz
+- Sync java-17-openjdk-portable.specfile from openjdk-portable-rhel-8
+- Set buildver to 11
+- Set is_ga to 1
+- Update sources to openjdk-17.0.13+11.tar.xz
+- Resolves: RHEL-58785
+- ** This tarball is embargoed until 2024-10-15 @ 1pm PT. **
+
+* Fri Oct  4 2024 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.13.0.10-0.2.ea
+- Vary portablesuffix depending on whether we are on RHEL ('el8') or CentOS ('el9')
+- Set rpmrelease to 2
+- Related: RHEL-58785
+
+* Fri Oct  4 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.10-0.1.ea
+- Update to jdk-17.0.13+10 (EA)
+- Update .gitignore to ignore openjdk-17.0.13+10-ea.tar.xz
+- Sync java-17-openjdk-portable.specfile from openjdk-portable-centos-9
+- Set buildver to 10
+- Update sources to openjdk-17.0.13+10-ea.tar.xz
+- Related: RHEL-58785
+
+* Thu Oct  3 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.9-0.1.ea
+- Update to jdk-17.0.13+9 (EA)
+- Update .gitignore to ignore openjdk-17.0.13+9-ea.tar.xz
+- Sync java-17-openjdk-portable.specfile from openjdk-portable-centos-9
+- Set buildver to 9
+- Set rpmrelease to 1
+- Set portablerelease to 1
+- Update sources to openjdk-17.0.13+9-ea.tar.xz
+- Related: RHEL-58785
+
+* Thu Oct  3 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.1-0.4.ea
+- Set rpmrelease to 4
+- Set portablerelease to 2
+- Related: RHEL-58785
+
+* Thu Oct  3 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.1-0.3.ea
+- Synchronize java-17-openjdk-portable.specfile
+- Set rpmrelease to 3
+- Related: RHEL-58785
+
+* Thu Oct  3 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.13.0.1-0.2.ea
+- Update to jdk-17.0.13+1 (EA)
+- Update .gitignore to ignore openjdk-17.0.13+1-ea.tar.xz
+- Synchronize java-17-openjdk-portable.specfile
+- Set updatever to 13
+- Set buildver to 1
+- Set is_ga to 0
+- Update sources to openjdk-17.0.13+1-ea.tar.xz
+- Related: RHEL-58785
+- Remove 0001-8332174-Remove-2-unpaired-RLO-Unicode-characters-in-.patch
+- Remove unicode section from rpminspect.yml, fixed instead by
+  https://gitlab.cee.redhat.com/osci/rpminspect-data-redhat/-/merge_requests/180
+  (OPENJDK-2904)
+- Related: RHEL-58785
+
+* Mon Sep 23 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.7-3
+- Sync java-17-openjdk-portable.specfile from openjdk-portable-centos-9
+- Set rpmrelease to 3
+- Set portablesuffix to el9
+
+* Wed Jul 10 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.7-2
+- Update to jdk-17.0.12+7 (GA)
+- Update .gitignore to ignore openjdk-17.0.12+7.tar.xz
+- Sync java-17-openjdk-portable.specfile
+- Set buildver to 7
+- Set portablerelease 1
+- Set is_ga to 1
+- Update sources to openjdk-17.0.12+7.tar.xz
+- Resolves: RHEL-46635
+- Resolves: RHEL-47021
+- ** This tarball is embargoed until 2024-07-16 @ 1pm PT. **
+
+* Tue Jul  9 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- Add debuginfo section to rpminspect.yaml (OPENJDK-2904)
+- Add unicode section to rpminspect.yaml (OPENJDK-2904)
+
+* Mon Jul  8 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- Add upstream patch that removes illegal RLO Unicode characters (JDK-8332174)
+- Sync the copy of the portable specfile with the latest update
+
+* Mon Jul  8 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- Delete fips-17u-d63771ea660.patch
+- Add fips-17u-e893be00150.patch
+- Update fipsver to e893be00150
+
+* Mon Jul  8 2024 Anton Bobrov <abobrov@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- generate_source_tarball.sh: Use tar exclude options for VCS files
+- generate_source_tarball.sh: Improve VCS exclusion
+
+* Mon Jul  8 2024 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- generate_source_tarball.sh: Update examples in header for clarity
+- generate_source_tarball.sh: Cleanup message issued when checkout already exists
+- generate_source_tarball.sh: Create directory in TMPDIR when using WITH_TEMP
+- generate_source_tarball.sh: Only add --depth=1 on non-local repositories
+- icedtea_sync.sh: Reinstate from rhel-8.9.0 branch
+- Move maintenance scripts to a scripts subdirectory
+- discover_trees.sh: Set compile-command and indentation instructions for Emacs
+- discover_trees.sh: shellcheck: Do not use -o (SC2166)
+- discover_trees.sh: shellcheck: Remove x-prefixes since we use Bash (SC2268)
+- discover_trees.sh: shellcheck: Double-quote variable references (SC2086)
+- generate_source_tarball.sh: Add authorship
+- icedtea_sync.sh: Set compile-command and indentation instructions for Emacs
+- icedtea_sync.sh: shellcheck: Double-quote variable references (SC2086)
+- icedtea_sync.sh: shellcheck: Remove x-prefixes since we use Bash (SC2268)
+- openjdk_news.sh: Set compile-command and indentation instructions for Emacs
+- openjdk_news.sh: shellcheck: Double-quote variable references (SC2086)
+- openjdk_news.sh: shellcheck: Remove x-prefixes since we use Bash (SC2268)
+- openjdk_news.sh: shellcheck: Remove deprecated egrep usage (SC2196)
+- generate_source_tarball.sh: Output values of new options WITH_TEMP and OPENJDK_LATEST
+- generate_source_tarball.sh: Double-quote DEPTH reference (SC2086)
+- generate_source_tarball.sh: Avoid empty DEPTH reference while still appeasing shellcheck
+
+* Mon Jul  8 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.12.0.6-0.1.ea
+- Update to jdk-17.0.12+6 (EA)
+- Add openjdk-17.0.12+6-ea.tar.xz to .gitignore
+- Set updatever to 12
+- Set buildver to 6
+- Set rpmrelease to 1
+- Set is_ga to 0
+- Update sources to openjdk-17.0.12+6-ea.tar.xz
+- Require tzdata-java 2024a at runtime and for build (JDK-8325150)
+- Update lcms2 bundled provides to 2.16.0
+- Add zlib 1.3.1 bundled provides and zlib-devel build requirement (OPENJDK-3065)
+- Label as error a designator mismatch
+- Change a fix-me comment to a note instead
+- Sync generate_source_tarball.sh from Fedora rawhide
+
+* Thu Apr 11 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.11.0.9-2
+- Update to jdk-17.0.11+9 (GA)
+- Add openjdk-17.0.11+9.tar.xz to .gitignore
+- Sync java-17-openjdk-portable.specfile from openjdk-portable-rhel-8
+- Update buildver from 7 to 9
+- Update portablerelease from 1 to 3
+- Change is_ga from 0 to 1 to enable GA mode for release
+- Update tzdata Requires comment to mention that 2024a is not yet in the buildroot
+- Update tzdata BuildRequires comment to mention that 2024a is not yet in the buildroot
+- Update tzdata BuildRequires from 2023c to 2023d
+- Update sources from openjdk-17.0.11+7-ea.tar.xz to openjdk-17.0.11+9.tar.xz
+- Resolves: RHEL-30941
+- Resolves: RHEL-32421
+- ** This tarball is embargoed until 2024-04-16 @ 1pm PT. **
+
+* Thu Mar 28 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.11.0.7-0.2.ea
+- Update to jdk-17.0.11+7 (EA)
+- Update buildjdkver to match the featurever
+- Use featurever macro to specify fips patch
+- Explain patchN syntax situation in a comment
+- Sync generate_source_tarball.sh
+- Require tzdata 2023d (JDK-8322725)
+- openjdk_news.sh: Use grep -E instead of egrep
+- Remove RH1649512 patch for libjpeg-turbo FAR macro
+- Move pcsc-lite-libs patch to in-need-of-upstreaming section
+- Related: RHEL-30941
 
 * Thu Jan 11 2024 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.10.0.7-1
 - Update to jdk-17.0.10+7 (GA)
@@ -2488,7 +2674,7 @@ cjc.mainProgram(args)
 - Re-enable DEFAULT_PROMOTED_VERSION_PRE check disabled for the July 2023 release
 - generate_source_tarball.sh: Add --sort=name to tar invocation for reproducibility
 - ** This tarball is embargoed until 2024-01-16 @ 1pm PT. **
-- Resolves: RHEL-20995
+- Resolves: RHEL-20997
 
 * Thu Jan 11 2024 Thomas Fitzsimmons <fitzsim@redhat.com> - 1:17.0.10.0.7-1
 - Update to jdk-17.0.10+6 (EA)
@@ -2513,7 +2699,7 @@ cjc.mainProgram(args)
 - generate_source_tarball.sh: shellcheck: Do not use $ in expression
 - generate_source_tarball.sh: Remove temporary directory exit conditions
 - generate_source_tarball.sh: Add note on network usage of OPENJDK_LATEST
-- Related: RHEL-20995
+- Related: RHEL-20997
 
 * Thu Oct 12 2023 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.9.0.9-1
 - Update to jdk-17.0.9+9 (GA)
@@ -2532,12 +2718,16 @@ cjc.mainProgram(args)
 - Add missing JFR and jpackage alternative ghosts
 - Move jcmd to the headless package
 - ** This tarball is embargoed until 2023-10-17 @ 1pm PT. **
-- Resolves: RHEL-12226
-- Resolves: RHEL-13662
-- Resolves: RHEL-13673
-- Resolves: RHEL-13683
-- Resolves: RHEL-13648
-- Resolves: RHEL-13651
+- Resolves: RHEL-12228
+- Resolves: RHEL-13660
+- Resolves: RHEL-13665
+- Resolves: RHEL-3494
+- Resolves: RHEL-11317
+- Resolves: RHEL-3461
+
+* Mon Sep 04 2023 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.8.1.1-2
+- Set portablerelease and portablerhel to use the CentOS 9 build
+- Resolves: RHEL-36137
 
 * Mon Sep 04 2023 Andrew Hughes <gnu.andrew@redhat.com> - 1:17.0.8.1.1-2
 - Bump release number so we are newer than 9.0
