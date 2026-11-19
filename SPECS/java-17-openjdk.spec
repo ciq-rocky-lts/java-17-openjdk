@@ -361,7 +361,7 @@
 %endif
 %endif
 %endif
-%global oj_vendor_version (Red_Hat-%{version}-%{portablerelease})
+%global oj_vendor_version (Red_Hat-%{version}-%{portablerpmrelease})
 
 # Define IcedTea version used for SystemTap tapsets and desktop file
 %global icedteaver      6.0.0pre00-c848b93a8598
@@ -385,14 +385,16 @@
 # rpmrelease numbering must start at 2 to be later than the 9.0 RPM
 %global rpmrelease 3
 # Settings used by the portable build
-%global portablerelease 1
+%global portablerelease 1.1
+# The portable bakes its own rpmrelease (not the CIQ .1) into the JVM vendor version string.
+%global portablerpmrelease 1
 # Portable suffix differs between RHEL and CentOS
 %if 0%{?centos} == 0
-%global portablesuffix el9_2.92ciq_lts
-%global portabledir 92ciq_lts
+%global portablesuffix %(echo "%{?dist}" | sed "s/^\\.//")
+%global portabledir %(echo "%{portablesuffix}" | sed "s;^el[0-9]\\+\\(_[0-9]\\+\\)*;;")
 %else
-%global portablesuffix el9_2.92ciq_lts
-%global portabledir 92ciq_lts
+%global portablesuffix %(echo "%{?dist}" | sed "s/^\\.//")
+%global portabledir %(echo "%{portablesuffix}" | sed "s;^el[0-9]\\+\\(_[0-9]\\+\\)*;;")
 %endif
 %global portablebuilddir /builddir/build/BUILD
 
@@ -1260,7 +1262,7 @@ Provides: java-%{origin}-src%{?1} = %{epoch}:%{version}-%{release}
 
 Name: java-%{javaver}-%{origin}
 Version: %{newjavaver}.%{buildver}
-Release: %{?eaprefix}%{rpmrelease}%{?extraver}%{?dist}
+Release: %{?eaprefix}%{rpmrelease}%{?extraver}.2%{?dist}
 # Equivalent for the portable build
 %global prelease %{?eaprefix}%{portablerelease}%{?extraver}
 # java-1.5.0-ibm from jpackage.org set Epoch to 1 for unknown reasons
@@ -1335,14 +1337,14 @@ Source19: README.md
 Source20: java-%{featurever}-openjdk-portable.specfile
 
 # Setup variables to reference correct sources
-%global releasezip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.unstripped.jdk.%{portabledir}.%{_arch}.tar.xz
-%global staticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.static-libs.%{portabledir}.%{_arch}.tar.xz
-%global docszip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.docs.%{portabledir}.%{_arch}.tar.xz
-%global misczip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.misc.%{portabledir}.%{_arch}.tar.xz
-%global slowdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.jdk.%{portabledir}.%{_arch}.tar.xz
-%global slowdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.static-libs.%{portabledir}.%{_arch}.tar.xz
-%global fastdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.jdk.%{portabledir}.%{_arch}.tar.xz
-%global fastdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.static-libs.%{portabledir}.%{_arch}.tar.xz
+%global releasezip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.unstripped.jdk%{portabledir}.%{_arch}.tar.xz
+%global staticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.static-libs%{portabledir}.%{_arch}.tar.xz
+%global docszip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.docs%{portabledir}.%{_arch}.tar.xz
+%global misczip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.misc%{portabledir}.%{_arch}.tar.xz
+%global slowdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.jdk%{portabledir}.%{_arch}.tar.xz
+%global slowdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.slowdebug.static-libs%{portabledir}.%{_arch}.tar.xz
+%global fastdebugzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.jdk%{portabledir}.%{_arch}.tar.xz
+%global fastdebugstaticlibzip %{_jvmdir}/%{name}-%{version}-%{prelease}.portable.fastdebug.static-libs%{portabledir}.%{_arch}.tar.xz
 
 ############################################
 #
@@ -1941,11 +1943,11 @@ mkdir -p $(dirname %{installoutputdir})
 
 docdir=%{installoutputdir -- "-docs"}
 tar -xJf %{docszip}
-mv java-%{featurever}-openjdk*.docs.* ${docdir}
+mv java-%{featurever}-openjdk*.docs%{portabledir}.* ${docdir}
 
 miscdir=%{installoutputdir -- "-misc"}
 tar -xJf %{misczip}
-mv java-%{featurever}-openjdk*.misc.* ${miscdir}
+mv java-%{featurever}-openjdk*.misc%{portabledir}.* ${miscdir}
 
 for suffix in %{build_loop} ; do
 
@@ -2498,6 +2500,13 @@ cjc.mainProgram(args)
 %endif
 
 %changelog
+* Thu Nov 19 2026 Jason Rodriguez <jrodriguez@ciq.com> - 1:17.0.13.0.11-3.2
+- Derive portablesuffix and portabledir from the build dist instead of hardcoding el9_2_ciq
+
+* Wed Nov 18 2026 Jason Rodriguez <jrodriguez@ciq.com> - 1:17.0.13.0.11-3.1
+- Fix CVE-2026-114938: rebuild against the java-17-openjdk-portable carrying JDK-8393212
+  (x86_64 Base64 decodeBlock heap overflow); this wrapper only repackages the portable
+
 * Fri Oct 18 2024 Jonathan Dieter <jdieter@ciq.com> - 17.0.13.0.11-3.el9_2
 - Fix build for 9.2 LTS
 
